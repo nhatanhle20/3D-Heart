@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yêu chị Sứa nhất trên đời ♥</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  body {
+    background: radial-gradient(ellipse at 50% 45%, #2a0718 0%, #12030b 45%, #050105 75%, #000 100%);
+  }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+
+  .hint {
+    position: fixed; left: 0; right: 0; top: 16px; text-align: center;
+    color: rgba(255, 182, 217, .6); font: 13px/1.4 system-ui, sans-serif; letter-spacing: .12em;
+    pointer-events: none; animation: breathe 3.5s ease-in-out infinite; padding: 0 16px;
+    transition: opacity .6s;
+  }
+  body.kitty .hint { opacity: 0 !important; animation: none; }
+  @keyframes breathe { 0%,100% { opacity: .25 } 50% { opacity: .8 } }
+
+  /* ---------- Nút quà ---------- */
+  .gift {
+    position: fixed; right: 18px; bottom: 18px; z-index: 5; overflow: hidden;
+    max-width: calc(100vw - 36px);
+    padding: 13px 31px 15px; border-radius: 999px; text-align: center;
+    border: 2px solid rgba(255, 255, 255, .85);
+    font: 400 21px/1.3 'Pacifico', cursive; color: #fff; letter-spacing: .02em;
+    background: linear-gradient(135deg, #ffa3cf 0%, #ff5fa8 50%, #e8202a 100%);
+    text-shadow: 0 1px 2px rgba(150, 0, 40, .35);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    animation: glow 2.2s ease-in-out infinite;
+    transition: transform .25s ease, background .6s, color .6s, border-color .6s;
+  }
+  .gift:hover { transform: translateY(-2px) scale(1.04); }
+  .gift:active { transform: scale(.97); }
+  .gift::after {
+    content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .6), transparent);
+    transform: skewX(-20deg); animation: shine 3.4s ease-in-out infinite;
+  }
+  body.kitty .gift {
+    background: linear-gradient(135deg, rgba(255, 95, 168, .22) 0%, rgba(110, 8, 45, .45) 100%);
+    color: #ffe3f0; border-color: rgba(255, 140, 190, .75);
+    text-shadow: 0 0 10px rgba(255, 90, 170, .9);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  @keyframes shine { 0% { left: -60% } 55%, 100% { left: 130% } }
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 12px 2px rgba(255, 95, 168, .55), 0 8px 24px rgba(255, 40, 120, .35); }
+    50%      { box-shadow: 0 0 26px 8px rgba(255, 95, 168, .8),  0 8px 24px rgba(255, 40, 120, .45); }
+  }
+
+  /* ---------- Dòng chữ dưới Hello Kitty ---------- */
+  .cap {
+    position: fixed; left: 0; right: 0; text-align: center; white-space: nowrap;
+    font-family: 'Dancing Script', cursive; font-weight: 700; color: #ffe6f2; pointer-events: none;
+    opacity: 0; transform: translateY(24px) scale(.85);
+    transition: opacity .9s ease, transform .9s cubic-bezier(.2, 1.6, .4, 1);
+  }
+  body.settled .cap { opacity: 1; transform: none; }
+  .cap span {
+    display: inline-block; animation: wave 2.4s ease-in-out infinite;
+    background: linear-gradient(180deg, #ffffff 0%, #ffd6ea 45%, #ff7fb8 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 6px rgba(255, 60, 150, .75)) drop-shadow(0 0 18px rgba(255, 40, 130, .35));
+  }
+  .cap span.h {
+    background: none; -webkit-text-fill-color: #ff4d9d; color: #ff4d9d; font-size: .7em;
+    vertical-align: middle; filter: drop-shadow(0 0 8px rgba(255, 60, 150, .9));
+  }
+  @keyframes wave { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
+
+  @media (max-width: 480px) {
+    .gift { font-size: 14px; padding: 9px 18px 11px; right: 12px; bottom: 12px; max-width: calc(100vw - 24px); border-radius: 24px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint">Kéo để xoay • Chạm để thả tim ♥</div>
+<div class="cap" id="cap"></div>
+<button class="gift" id="gift" type="button">riying tặng riêng cho baobei ♥</button>
+
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const rnd = Math.random, PI = Math.PI, TAU = PI * 2;
+
+  const PHRASES = ['Yêu chị Sứa nhất trên đời', 'ZHL 我爱你!'].map(s => s.normalize('NFC'));
+  const CAPTION = 'iu babi rất nhìuuu'.normalize('NFC');
+  const HEART_SCALE = 1.1;              // kích thước trái tim
+  const F = 90, D = 90;                 // phối cảnh
+  const RING = 27, TILT = -0.32, ROLL = 0.1;
+  const cT = Math.cos(TILT), sT = Math.sin(TILT), cR = Math.cos(ROLL), sR = Math.sin(ROLL);
+
+  let W, H, DPR, U, CX, CY;
+
+  // ---------- Sprite hạt phát sáng ----------
+  const COLORS = ['#ff3b7f', '#ff4d9d', '#ff77b7', '#ff9ccb', '#ffc0e0'];
+  const SPRITES = COLORS.map(col => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    // lõi đặc, sáng + viền sáng mỏng => hạt sắc nét
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, '#ffffff');
+    gr.addColorStop(0.16, '#fff0f7');
+    gr.addColorStop(0.3, col);
+    gr.addColorStop(0.42, col);
+    gr.addColorStop(0.55, col + '40');
+    gr.addColorStop(1, col + '00');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 64, 64);
+    return c;
+  });
+
+  // hạt cho hình Hello Kitty: trắng, đen, đỏ, vàng mũi.
+  // Trắng / đỏ / vàng có lõi sáng + quầng mờ như ngôi sao; đen là chấm đặc để giữ nét viền.
+  const K_STOPS = [
+    [[0, '#ffffff'], [0.2, '#ffffff'], [0.32, 'rgba(255,255,255,0.92)'], [0.46, 'rgba(255,245,250,0.4)'], [0.7, 'rgba(255,230,242,0.08)'], [1, 'rgba(255,230,242,0)']],
+    [[0, '#0d0d0d'], [0.6, '#0d0d0d'], [0.82, 'rgba(13,13,13,0.55)'], [1, 'rgba(13,13,13,0)']],
+    [[0, '#ffe0e3'], [0.12, '#ff5a64'], [0.26, '#ee2430'], [0.42, 'rgba(232,32,42,0.45)'], [0.7, 'rgba(232,32,42,0.1)'], [1, 'rgba(232,32,42,0)']],
+    [[0, '#fffbe8'], [0.14, '#ffd98a'], [0.28, '#f6c66d'], [0.45, 'rgba(246,198,109,0.4)'], [1, 'rgba(246,198,109,0)']],
+  ];
+  const K_SCALE = [2.35, 1, 2, 2];         // sprite phát sáng vẽ to hơn vì lõi chỉ chiếm phần giữa
+  const K_SPRITES = K_STOPS.map(stops => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    for (const [o, col] of stops) gr.addColorStop(o, col);
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 64, 64);
+    return c;
+  });
+  // tia sao lấp lánh (chữ thập sáng) cho một số hạt
+  const FLARE = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)');
+    gr.addColorStop(0.1, 'rgba(255,245,250,0.8)');
+    gr.addColorStop(0.3, 'rgba(255,190,225,0.18)');
+    gr.addColorStop(1, 'rgba(255,190,225,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    for (const horiz of [true, false]) {
+      const lg = horiz ? g.createLinearGradient(0, 0, 64, 0) : g.createLinearGradient(0, 0, 0, 64);
+      lg.addColorStop(0, 'rgba(255,255,255,0)');
+      lg.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+      lg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = lg;
+      if (horiz) g.fillRect(0, 31, 64, 2); else g.fillRect(31, 0, 2, 64);
+    }
+    return c;
+  })();
+
+  // ---------- Hình trái tim 3D ----------
+  // Đường viền kiểu "trái tim cổ điển": 2 thùy tròn đầy, khe nông, 2 cạnh gần thẳng xuống mũi nhọn.
+  // Nửa phải dựng bằng 4 đường cong Bézier (toạ độ ảnh 1280px, gốc x ở trục giữa), nửa trái lấy đối xứng.
+  const HEART_PATH = [
+    [[0, 285],   [60, 185],  [160, 118], [275, 118]],   // khe -> đỉnh thùy
+    [[275, 118], [440, 118], [571, 250], [571, 415]],   // đỉnh thùy -> hông
+    [[571, 415], [571, 600], [520, 700], [380, 835]],   // hông -> cạnh dưới
+    [[380, 835], [250, 950], [80, 1085], [0, 1160]],    // cạnh dưới -> mũi tim
+  ];
+  const OUTLINE = (() => {
+    const k = 16 / 571, cy = 639, right = [];
+    for (const [p0, p1, p2, p3] of HEART_PATH) {
+      for (let i = 0; i < 250; i++) {
+        const t = i / 250, u = 1 - t;
+        const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+        right.push([(a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0]) * k,
+                    -(a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1] - cy) * k]);
+      }
+    }
+    right.push([0, -(1160 - cy) * k]);
+    const left = right.slice(1, -1).reverse().map(([x, y]) => [-x, y]);
+    return right.concat(left);
+  })();
+  function heart2D(t) {
+    const n = OUTLINE.length, u = ((t / TAU) % 1 + 1) % 1 * n;
+    const i = Math.floor(u), f = u - i;
+    const p = OUTLINE[i % n], q = OUTLINE[(i + 1) % n];
+    return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
+  }
+  // bảng độ dài cung để hạt rải đều dọc đường viền (tránh dồn cục ở đỉnh / mũi tim)
+  const ARC_N = 2000, ARC = new Float32Array(ARC_N + 1);
+  (() => {
+    let prev = heart2D(0);
+    for (let i = 1; i <= ARC_N; i++) {
+      const p = heart2D(i / ARC_N * TAU);
+      ARC[i] = ARC[i - 1] + Math.hypot(p[0] - prev[0], p[1] - prev[1]);
+      prev = p;
+    }
+  })();
+  function sampleT() {
+    const target = rnd() * ARC[ARC_N];
+    let lo = 0, hi = ARC_N;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (ARC[m] < target) lo = m + 1; else hi = m; }
+    return (lo - rnd()) / ARC_N * TAU;
+  }
+  function shellPoint() {
+    // lớp vỏ phồng: mỗi "lát" là một đường viền trái tim thu nhỏ, lệch theo trục z
+    let phi, s;
+    do {
+      phi = (rnd() * 2 - 1) * PI / 2;
+      s = Math.pow(Math.cos(phi), 0.55);
+    } while (rnd() > s);
+    const [x, y] = heart2D(sampleT());
+    return [x * s, y * s, Math.sin(phi) * 6.5];
+  }
+
+  // ---------- Hello Kitty 3D ----------
+  // Vẽ Kitty bằng vector trên canvas ẩn 700x1000 (mặt trước đủ chi tiết, mặt sau chỉ có khối màu),
+  // rồi "thổi phồng" từng bộ phận (đầu, nơ, tim, tay) thành khối 3D theo khoảng cách tới mép.
+  const KW = 700, KH = 1000;
+  const KS = 38 / 555;                  // đơn vị thế giới / pixel ảnh (Kitty cao ~38 đơn vị)
+  const K_CX = 352, K_CY = 502, K_LIFT = 3;
+  const K_HEART_CY = 622;               // tâm trái tim Kitty ôm (để nó cũng đập theo nhịp)
+  const K_FRONT = 0.67;                 // tỉ lệ hạt nằm ở mặt trước
+
+  const hhx = x => x * 0.345, hhy = y => 468 + (y - 118) * 0.30;
+  const K_SHAPES = [
+    [ // 0: đầu + tai
+      g => { g.beginPath(); g.moveTo(213, 322); g.quadraticCurveTo(208, 250, 236, 234); g.quadraticCurveTo(262, 236, 310, 262); g.closePath(); },
+      g => { g.beginPath(); g.moveTo(400, 262); g.quadraticCurveTo(446, 234, 472, 234); g.quadraticCurveTo(500, 250, 494, 322); g.closePath(); },
+      g => { g.beginPath(); g.ellipse(352, 362, 150, 112, 0, 0, TAU); },
+    ],
+    [ // 1: nơ
+      g => { g.beginPath(); g.ellipse(372, 262, 34, 27, -0.35, 0, TAU); },
+      g => { g.beginPath(); g.ellipse(458, 314, 36, 29, 0.55, 0, TAU); },
+      g => { g.beginPath(); g.arc(414, 290, 21, 0, TAU); },
+    ],
+    [ // 2: trái tim đỏ
+      g => {
+        g.beginPath(); g.moveTo(352, hhy(285));
+        for (const side of [1, -1]) {
+          const segs = side === 1 ? HEART_PATH : HEART_PATH.slice().reverse().map(s => s.slice().reverse());
+          for (const [, p1, p2, p3] of segs) {
+            g.bezierCurveTo(352 + side * hhx(p1[0]), hhy(p1[1]), 352 + side * hhx(p2[0]), hhy(p2[1]),
+                            352 + side * hhx(p3[0]), hhy(p3[1]));
+          }
+        }
+        g.closePath();
+      },
+    ],
+    [ // 3: hai tay
+      g => { g.beginPath(); g.ellipse(262, 480, 38, 30, 0, 0, TAU); },
+      g => { g.beginPath(); g.ellipse(444, 480, 38, 30, 0, 0, TAU); },
+    ],
+  ];
+  // độ phồng của từng bộ phận: zc = tâm theo chiều sâu (âm = gần người xem), depth = nửa bề dày
+  const K_PARTS = [
+    { zc: 0,    depth: 7.2, dmax: 105 },  // đầu tròn như quả bóng
+    { zc: -1.8, depth: 2.2, dmax: 24 },   // nơ
+    { zc: -5,   depth: 3.2, dmax: 90 },   // tim ôm trước ngực
+    { zc: -6.2, depth: 2.2, dmax: 28 },   // tay đặt lên tim
+  ];
+
+  function drawKitty(g, front) {
+    const BK = '#1b1b1b', RED = '#e8202a', WH = '#ffffff', NOSE = '#f6c66d';
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    const fs = (fill, lw) => { g.fillStyle = fill; g.fill(); g.lineWidth = lw; g.strokeStyle = BK; g.stroke(); };
+    for (const s of K_SHAPES[0]) { s(g); fs(WH, 9); }
+    g.fillStyle = WH;
+    for (const s of K_SHAPES[0]) { s(g); g.fill(); }
+    if (front) {
+      g.fillStyle = BK;
+      g.beginPath(); g.ellipse(280, 398, 11, 15, 0, 0, TAU); g.fill();
+      g.beginPath(); g.ellipse(422, 398, 11, 15, 0, 0, TAU); g.fill();
+      g.fillStyle = NOSE;
+      g.beginPath(); g.ellipse(350, 424, 14, 10, 0, 0, TAU); g.fill();
+      g.lineWidth = 3; g.strokeStyle = '#d99a3c'; g.stroke();
+      g.strokeStyle = BK; g.lineWidth = 7;
+      for (const [a, b, c, d] of [
+        [168, 380, 232, 392], [174, 414, 234, 414], [186, 450, 238, 432],
+        [470, 392, 534, 380], [468, 414, 528, 414], [464, 432, 516, 450]]) {
+        g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke();
+      }
+    }
+    K_SHAPES[1][0](g); fs(RED, 8);
+    K_SHAPES[1][1](g); fs(RED, 8);
+    if (front) {
+      g.lineWidth = 5;
+      g.beginPath(); g.ellipse(378, 266, 13, 9, -0.35, 0, TAU); g.stroke();
+      g.beginPath(); g.ellipse(450, 308, 14, 9, 0.55, 0, TAU); g.stroke();
+    }
+    K_SHAPES[1][2](g); fs(RED, 8);
+    K_SHAPES[2][0](g); fs(RED, 10);
+    for (const [i, px] of [[0, 262], [1, 444]]) {
+      K_SHAPES[3][i](g); fs(WH, 9);
+      if (front) {
+        g.lineWidth = 5;
+        for (const dx of [-11, 11]) { g.beginPath(); g.moveTo(px + dx, 494); g.lineTo(px + dx, 508); g.stroke(); }
+      }
+    }
+  }
+
+  const GW = KW / 2, GH = KH / 2;       // lưới lấy mẫu bước 2px
+  const mkCanvas = () => { const c = document.createElement('canvas'); c.width = KW; c.height = KH; return c; };
+
+  // mặt nạ + bản đồ khoảng cách tới mép (chamfer) cho từng bộ phận
+  const K_DIST = K_SHAPES.map(shapes => {
+    const c = mkCanvas(), g = c.getContext('2d');
+    g.fillStyle = g.strokeStyle = '#fff'; g.lineWidth = 10; g.lineJoin = 'round';
+    for (const s of shapes) { s(g); g.fill(); g.stroke(); }
+    const data = g.getImageData(0, 0, KW, KH).data;
+    const d = new Float32Array(GW * GH);
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      d[y * GW + x] = data[((y * 2) * KW + x * 2) * 4 + 3] > 128 ? 1e6 : 0;
+    }
+    const at = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH) ? 0 : d[y * GW + x];
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const i = y * GW + x; if (!d[i]) continue;
+      d[i] = Math.min(d[i], at(x - 1, y) + 1, at(x, y - 1) + 1, at(x - 1, y - 1) + 1.414, at(x + 1, y - 1) + 1.414);
+    }
+    for (let y = GH - 1; y >= 0; y--) for (let x = GW - 1; x >= 0; x--) {
+      const i = y * GW + x; if (!d[i]) continue;
+      d[i] = Math.min(d[i], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.414, at(x - 1, y + 1) + 1.414);
+    }
+    for (let i = 0; i < d.length; i++) d[i] *= 2;   // đổi về pixel ảnh
+    return d;
+  });
+
+  // tập điểm lấy mẫu theo màu (viền đen được ưu tiên dày hơn cho nét rõ)
+  function kittySampler(front) {
+    const c = mkCanvas(); drawKitty(c.getContext('2d'), front);
+    const data = c.getContext('2d').getImageData(0, 0, KW, KH).data;
+    const pal = [[255, 255, 255], [27, 27, 27], [232, 32, 42], [246, 198, 109]];
+    const weight = [1, 2.6, 1, 3];
+    const pts = [], cum = [];
+    let total = 0;
+    for (let y = 0; y < GH; y++) {
+      for (let x = 0; x < GW; x++) {
+        const i = ((y * 2) * KW + x * 2) * 4;
+        if (data[i + 3] < 140) continue;
+        const r0 = data[i], g0 = data[i + 1], b0 = data[i + 2];
+        let best = 0, bd = 1e9;
+        const isNose = r0 > 200 && g0 > 150 && b0 < 160 && r0 - b0 > 80;
+        for (let k = 0; k < 3; k++) {
+          const dd = (r0 - pal[k][0]) ** 2 + (g0 - pal[k][1]) ** 2 + (b0 - pal[k][2]) ** 2;
+          if (dd < bd) { bd = dd; best = k; }
+        }
+        if (isNose) best = 3;
+        pts.push([x, y, best]);
+        total += weight[best];
+        cum.push(total);
+      }
+    }
+    return { pts, cum, total };
+  }
+  const K_SAMPLERS = [kittySampler(true), kittySampler(false)];
+
+  // Mặt cắt ngang của mỗi khối là cung tròn: dist (px tới mép) -> độ phồng h.
+  // Vùng sát mép dốc đứng nên có diện tích bề mặt lớn => được rải thêm hạt (w), để cạnh bên liền khối.
+  const K_RIM_MAX = 3.5;
+  const K_FILL = [0, 2, 2, 0];          // màu thân của bộ phận: đầu trắng, nơ đỏ, tim đỏ, tay trắng
+  function profile(P0, dist) {
+    const dn = Math.min(1, Math.max(0, dist - 2 * rnd()) / P0.dmax);   // làm mịn theo ô lưới 2px
+    const q = Math.max(1e-4, 1 - (1 - dn) * (1 - dn));
+    const slope = P0.depth / (P0.dmax * KS) * (1 - dn) / Math.sqrt(q);
+    return { h: P0.depth * Math.sqrt(q), w: Math.min(K_RIM_MAX, Math.sqrt(1 + slope * slope)) };
+  }
+  function pickWeighted({ cum, total }) {
+    const target = rnd() * total;
+    let lo = 0, hi = cum.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < target) lo = m + 1; else hi = m; }
+    return lo;
+  }
+
+  function sampleKitty() {
+    const back = rnd() > K_FRONT;
+    const S = K_SAMPLERS[back ? 1 : 0];
+    for (let tries = 0; ; tries++) {
+      const [gx, gy, c] = S.pts[pickWeighted(S)];
+      const gi = gy * GW + gx;
+      // bộ phận nằm trên cùng tại điểm này: tay > tim > nơ > đầu (ria bên ngoài đầu => không thuộc bộ phận nào)
+      let part = -1;
+      for (const k of [3, 2, 1, 0]) if (K_DIST[k][gi] > 0) { part = k; break; }
+      let z = 0, kc = c;
+      if (part >= 0) {
+        const P0 = K_PARTS[part], dist = K_DIST[part][gi];
+        const { h, w } = profile(P0, dist);
+        if (tries < 30 && rnd() * K_RIM_MAX > w) continue;
+        z = P0.zc + (back ? h : -h);
+        // nét viền đen ngoài cùng => thành màu của bộ phận, để cạnh bên không bị vệt đen chạy quanh
+        if (c === 1 && dist <= 11) kc = K_FILL[part];
+      }
+      const px = gx * 2 + rnd() * 2, py = gy * 2 + rnd() * 2;
+      return {
+        kx: (px - K_CX) * KS, ky: -(py - K_CY) * KS + K_LIFT, kz: z + (rnd() - .5) * 0.25, kc,
+        kh: part === 2,                 // thuộc trái tim đỏ => đập theo nhịp
+        nz: back ? 1 : -1,
+        feat: !back && (kc === 1 || kc === 3),   // mắt, mũi, ria, nét trong => luôn vẽ nổi lên trên
+      };
+    }
+  }
+
+  // ---------- Thân Kitty: nằm sau trái tim (nhìn thẳng bị che), xoay ra sau sẽ thấy cả người ----------
+  const kw = (px, py) => [(px - K_CX) * KS, -(py - K_CY) * KS + K_LIFT];
+  const BODY_PART = { zc: 2.2, depth: 5.2, dmax: 95 };
+  const BODY = (() => {
+    const c = mkCanvas(), g = c.getContext('2d');
+    g.lineJoin = 'round';
+    const draw = (fill, stroke, lw) => {
+      g.fillStyle = fill; g.strokeStyle = stroke; g.lineWidth = lw;
+      g.beginPath(); g.ellipse(352, 590, 95, 120, 0, 0, TAU); g.fill(); g.stroke();       // thân
+      for (const fx of [300, 404]) { g.beginPath(); g.ellipse(fx, 700, 42, 24, 0, 0, TAU); g.fill(); g.stroke(); } // chân
+    };
+    draw('#ffffff', '#1b1b1b', 9);
+    const data = g.getImageData(0, 0, KW, KH).data;
+    // bản đồ khoảng cách tới mép cho khối thân
+    const d = new Float32Array(GW * GH);
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) d[y * GW + x] = data[((y * 2) * KW + x * 2) * 4 + 3] > 128 ? 1e6 : 0;
+    const at = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH) ? 0 : d[y * GW + x];
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const i = y * GW + x; if (!d[i]) continue;
+      d[i] = Math.min(d[i], at(x - 1, y) + 1, at(x, y - 1) + 1, at(x - 1, y - 1) + 1.414, at(x + 1, y - 1) + 1.414);
+    }
+    for (let y = GH - 1; y >= 0; y--) for (let x = GW - 1; x >= 0; x--) {
+      const i = y * GW + x; if (!d[i]) continue;
+      d[i] = Math.min(d[i], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.414, at(x - 1, y + 1) + 1.414);
+    }
+    const pts = [], cum = [];
+    let total = 0;
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const i = ((y * 2) * KW + x * 2) * 4;
+      if (data[i + 3] < 140) continue;
+      const black = data[i] < 128;
+      pts.push([x, y, black ? 1 : 0, d[y * GW + x] * 2]);
+      total += black ? 2.2 : 1;
+      cum.push(total);
+    }
+    return { pts, cum, total };
+  })();
+  // tay: ống tròn nối từ vai ra tới bàn tay đặt trên trái tim
+  const ARMS = [[285, 520, 262, 480], [419, 520, 444, 480]].map(([sx, sy, ex, ey]) => {
+    const [ax, ay] = kw(sx, sy), [bx, by] = kw(ex, ey);
+    return { a: [ax, ay, 0.8], b: [bx, by, -6.2] };
+  });
+  function sampleBody() {
+    const r = rnd();
+    if (r < 0.2) {                      // tay
+      const { a, b } = ARMS[rnd() < .5 ? 0 : 1], t = rnd(), ang = rnd() * TAU, R = 1.5;
+      const ax = b[0] - a[0], ay = b[1] - a[1], az = b[2] - a[2], L = Math.hypot(ax, ay, az);
+      const ux = ax / L, uy = ay / L, uz = az / L;
+      // 2 vector vuông góc với trục tay
+      let px = -uy, py = ux, pz = 0; const pl = Math.hypot(px, py) || 1; px /= pl; py /= pl;
+      const qx = uy * pz - uz * py, qy = uz * px - ux * pz, qz = ux * py - uy * px;
+      const c = Math.cos(ang) * R, sn = Math.sin(ang) * R;
+      return { kx: a[0] + ax * t + px * c + qx * sn, ky: a[1] + ay * t + py * c + qy * sn,
+               kz: a[2] + az * t + pz * c + qz * sn, kc: 0, kh: false };
+    }
+    if (r < 0.25) {                     // đuôi nhỏ phía sau
+      const [tx, ty] = kw(372, 650), u = rnd() * 2 - 1, ang = rnd() * TAU, R = 1.4, q = Math.sqrt(1 - u * u);
+      return { kx: tx + q * Math.cos(ang) * R, ky: ty + u * R, kz: BODY_PART.zc + BODY_PART.depth + 0.6 + q * Math.sin(ang) * R,
+               kc: 0, kh: false, kb: true };
+    }
+    // thân + chân: chỉ rải ở mặt sau (mặt trước luôn bị trái tim che, rải vào sẽ lộ trắng qua tim)
+    const back = true;
+    for (let tries = 0; ; tries++) {
+      const [gx, gy, c, dist] = BODY.pts[pickWeighted(BODY)];
+      const { h, w } = profile(BODY_PART, dist);
+      if (tries < 30 && rnd() * K_RIM_MAX > w) continue;
+      const [x, y] = kw(gx * 2 + rnd() * 2, gy * 2 + rnd() * 2);
+      return { kx: x, ky: y, kz: BODY_PART.zc + (back ? h : -h), kc: c === 1 && dist <= 11 ? 0 : c,
+               kh: false, kb: true, nz: back ? 1 : -1 };
+    }
+  }
+
+  const K_BODY_SHARE = 0.24;            // tỉ lệ hạt Kitty dành cho thân / tay / đuôi
+
+  const P = [];
+  let KORDER = [];
+  function buildParticles() {
+    P.length = 0;
+    const f = (innerWidth * innerHeight < 500000) ? 0.6 : 1;
+    const add = (type, n) => {
+      for (let i = 0; i < n * f; i++) {
+        let [x, y, z] = shellPoint();
+        let k;
+        if (type === 0) k = 1 + (rnd() - 0.5) * 0.04;                         // viền
+        else if (type === 1) k = Math.max(0.12, 1 - 0.17 * -Math.log(rnd()));  // bên trong
+        else if (type === 2) k = 1.04 + Math.min(0.85, 0.14 * -Math.log(rnd()));  // hào quang
+        else k = 0.3 + rnd() * 0.7;                                            // hạt riêng của Kitty
+        x *= k; y *= k; z *= k;
+        if (type === 2) { x += (rnd() - .5) * 2; y += (rnd() - .5) * 2; z += (rnd() - .5) * 3; }
+        const p = {
+          x, y, z, type,
+          c: type === 0 ? (rnd() < .5 ? 1 : 2) : (rnd() * COLORS.length) | 0,
+          s: type === 0 ? 0.9 + rnd() * 0.7 : 0.7 + rnd() * 0.8,
+          ph: rnd() * TAU, sp: 1 + rnd() * 3,
+          // biến hình: độ trễ + hướng xoáy
+          dl: rnd() * 0.4, swx: (rnd() - .5) * 18, swy: (rnd() - .5) * 18, e: 0,
+        };
+        if (type === 2) {
+          // hào quang => lấp lánh bao quanh Kitty
+          const a = rnd() * TAU, r = 23 + rnd() * 9;
+          Object.assign(p, { kx: Math.cos(a) * r * 0.95, ky: Math.sin(a) * r * 1.05 + K_LIFT, kz: 0, kc: -1, kh: false });
+        } else {
+          Object.assign(p, rnd() < K_BODY_SHARE ? sampleBody() : sampleKitty());
+          p.star = p.kc === 2 && !!p.nz && rnd() < 0.08;
+        }
+        P.push(p);
+      }
+    };
+    add(0, 5200); add(1, 1800); add(2, 3600);
+    add(3, 8000);                       // hạt chỉ xuất hiện ở hình Kitty (cho dày & mịn)
+    P.sort((a, b) => a.c - b.c);
+    KORDER = P.filter(p => p.type !== 2);
+  }
+
+  // bụi lấp lánh chạy theo vòng chữ
+  const DUST = Array.from({ length: 420 }, () => ({
+    a: rnd() * TAU, r: RING + (rnd() + rnd() + rnd() - 1.5) * 1.6,
+    y: (rnd() + rnd() - 1) * 1.4, sp: 0.05 + rnd() * 0.15,
+    c: 2 + ((rnd() * 3) | 0), ph: rnd() * TAU, s: 0.6 + rnd() * 0.8,
+  }));
+
+  // sao nền
+  let STARS = [];
+  function buildStars() {
+    STARS = Array.from({ length: Math.round(W * H / 6000) }, () => ({
+      x: rnd() * W, y: rnd() * H, r: rnd() * 1.3 + 0.2, ph: rnd() * TAU, sp: 0.5 + rnd() * 2,
+    }));
+  }
+
+  // ---------- Bố cục chữ quanh vòng ----------
+  let chars = [], textPx = 40;
+  function layoutText() {
+    ctx.font = "700 100px 'Dancing Script', cursive";
+    const unit = PHRASES.flatMap(p => [...(p + '   ♥   ')]);   // 2 câu xen kẽ
+    const oneW = unit.reduce((s, c) => s + ctx.measureText(c).width, 0) / 100;
+    const circ = TAU * RING * U;
+    const reps = Math.max(1, Math.round(circ / (oneW * U * 3.3)));
+    textPx = circ / (reps * oneW);
+    const seq = [];
+    for (let i = 0; i < reps; i++) seq.push(...unit);
+    const widths = seq.map(c => ctx.measureText(c).width);
+    const total = widths.reduce((a, b) => a + b, 0);
+    let cum = 0;
+    chars = seq.map((c, i) => {
+      const a = (cum + widths[i] / 2) / total * TAU;
+      cum += widths[i];
+      return { c, a, heart: c === '♥' };
+    });
+  }
+
+  function ringProj(x, y, z) {
+    const y1 = y * cT - z * sT, z1 = y * sT + z * cT;
+    const x2 = x * cR - y1 * sR, y2 = x * sR + y1 * cR;
+    const pr = F / (D + z1);
+    return [CX + x2 * pr * U, CY - y2 * pr * U, pr, z1];
+  }
+
+  // ---------- Nhịp tim ----------
+  function beat(t) {
+    const p = (t % 2.5) / 2.5;
+    return Math.exp(-Math.pow((p - 0.08) / 0.06, 2)) + 0.55 * Math.exp(-Math.pow((p - 0.3) / 0.07, 2));
+  }
+
+  // ---------- Chế độ Hello Kitty ----------
+  let mode = 0, morph = 0;              // mode: 0 = trái tim, 1 = Kitty; morph chạy 0 -> 1
+  const MORPH_TIME = 2.6;
+  const GIFT_LABELS = ['riying tặng riêng cho baobei ♥', 'xem tình iu của riying dành cho babi ♥'].map(t => t.normalize('NFC'));
+  const capEl = document.getElementById('cap');
+  capEl.innerHTML = '<span class="h">♥</span>&nbsp;' +
+    [...CAPTION].map((ch, i) => `<span style="animation-delay:${(i * 0.08).toFixed(2)}s">${ch === ' ' ? '&nbsp;' : ch}</span>`).join('') +
+    '&nbsp;<span class="h" style="animation-delay:1.5s">♥</span>';
+  document.getElementById('gift').addEventListener('click', () => {
+    mode = 1 - mode;
+    velYaw = 0;
+    if (mode === 1) { kYaw = 0; kPitch = 0; }   // Kitty luôn xuất hiện nhìn thẳng
+    document.body.classList.toggle('kitty', mode === 1);
+    document.getElementById('gift').textContent = mode ? GIFT_LABELS[1] : GIFT_LABELS[0];
+    if (mode === 0) document.body.classList.remove('settled');
+    const r = document.getElementById('gift').getBoundingClientRect();
+    for (let i = 0; i < 16; i++) {
+      const a = -PI / 2 + (rnd() - .5) * 2.2, v = 150 + rnd() * 250;
+      spawnFloater(r.left + r.width / 2, r.top, Math.cos(a) * v, Math.sin(a) * v, true);
+    }
+  });
+  function placeCaption() {
+    const bottomY = CY + ((790 - K_CY) * KS - K_LIFT) * U;
+    const size = Math.max(20, Math.min(U * 3.4, W / 11)) * 0.9 * 1.15;   // Dancing Script nhỏ hơn Pacifico ~15%
+    capEl.style.fontSize = size + 'px';
+    capEl.style.top = (bottomY + U * 1.2) + 'px';
+  }
+
+  // ---------- Tim bay ----------
+  const floaters = [];
+  function spawnFloater(x, y, vx, vy, burst) {
+    const cols = mode ? ['#ffffff', '#e8202a', '#ff5fa8', '#fff0f6'] : ['#ff4d9d', '#ff77b7', '#ff2d6f', '#ffb3d6'];
+    floaters.push({ x, y, vx, vy, s: 16 + rnd() * 28, life: 0,
+      max: burst ? 1.4 + rnd() : 7 + rnd() * 4, ph: rnd() * TAU, burst,
+      col: cols[(rnd() * 4) | 0] });
+  }
+
+  // ---------- Tương tác ----------
+  let dragYaw = 0, dragPitch = 0, velYaw = 0, burst = 0;
+  let kYaw = 0, kPitch = 0;             // góc xoay riêng của Kitty
+  let dragging = false, lx = 0, ly = 0, moved = 0;
+  cv.addEventListener('pointerdown', e => {
+    dragging = true; lx = e.clientX; ly = e.clientY; moved = 0;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - lx, dy = e.clientY - ly;
+    lx = e.clientX; ly = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
+    velYaw = -dx * 0.008;
+    if (mode === 1) {
+      kYaw += velYaw;
+      kPitch = Math.max(-0.7, Math.min(0.7, kPitch - dy * 0.005));
+    } else {
+      dragYaw += velYaw;
+      dragPitch = Math.max(-0.6, Math.min(0.6, dragPitch - dy * 0.005));
+    }
+  });
+  cv.addEventListener('pointerup', e => {
+    dragging = false;
+    if (moved < 6) {
+      if (mode === 0) burst = 1;
+      for (let i = 0; i < 22; i++) {
+        const a = rnd() * TAU, v = 120 + rnd() * 260;
+        spawnFloater(e.clientX, e.clientY, Math.cos(a) * v, Math.sin(a) * v - 80, true);
+      }
+    }
+  });
+
+  // ---------- Resize ----------
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * DPR; cv.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    U = Math.min(W, H) / 62;
+    CX = W / 2; CY = H / 2;
+    buildStars();
+    layoutText();
+    placeCaption();
+  }
+  addEventListener('resize', resize);
+  resize();
+  buildParticles();
+  document.fonts && document.fonts.load("700 40px 'Dancing Script'", PHRASES.join(' ')).then(layoutText).catch(() => {});
+
+  // ---------- Vẽ chữ ----------
+  function drawText(front, ringRot, pulse, fade) {
+    if (fade <= 0.01) return;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const boost = 1 + 0.035 * pulse;
+    for (const ch of chars) {
+      const th = ch.a + ringRot;
+      const [sx, sy, pr, zz] = ringProj(RING * Math.cos(th), 0, RING * Math.sin(th));
+      if ((zz < 0) !== front) continue;
+      const [sx2, sy2] = ringProj(RING * Math.cos(th + 0.01), 0, RING * Math.sin(th + 0.01));
+      let ang = Math.atan2(sy2 - sy, sx2 - sx);
+      if (Math.cos(ang) < 0) ang += PI;
+      const facing = -Math.sin(th);                // 1 = mặt trước, -1 = mặt sau
+      const size = textPx * pr * boost;
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(ang);
+      ctx.scale(0.3 + 0.7 * Math.abs(facing), 1);
+      ctx.globalAlpha = (0.15 + 0.85 * Math.pow((facing + 1) / 2, 1.6)) * fade;
+      ctx.font = `700 ${size.toFixed(1)}px 'Dancing Script', cursive`;
+      if (ch.heart) {
+        ctx.fillStyle = '#ff2d6f';
+      } else {
+        const g = ctx.createLinearGradient(0, -size * 0.5, 0, size * 0.5);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.45, '#ffd6ea');
+        g.addColorStop(1, '#ff5fa8');
+        ctx.fillStyle = g;
+      }
+      if (front) {
+        ctx.shadowColor = 'rgba(255, 40, 140, 0.95)';
+        ctx.shadowBlur = size * (0.45 + 0.25 * pulse);
+      }
+      ctx.fillText(ch.c, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  const smooth = t => t * t * (3 - 2 * t);
+  const easeIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+  // ---------- Vòng lặp ----------
+  let last = performance.now(), T = 0, spawnT = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now; T += dt;
+    const pulse = beat(T);
+    burst *= Math.pow(0.03, dt);
+    if (!dragging) { if (mode) kYaw += velYaw; else dragYaw += velYaw; velYaw *= 0.94; }
+
+    morph = Math.max(0, Math.min(1, morph + (mode ? 1 : -1) * dt / MORPH_TIME));
+    if (mode === 1 && morph >= 1 && !document.body.classList.contains('settled')) document.body.classList.add('settled');
+    const heartFade = 1 - smooth(morph);  // vòng chữ quanh tim mờ dần khi sang Kitty
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, W, H);
+
+    // sao
+    ctx.fillStyle = '#ffd9ec';
+    for (const s of STARS) {
+      ctx.globalAlpha = 0.15 + 0.5 * (0.5 + 0.5 * Math.sin(T * s.sp + s.ph));
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+
+    // tim bay lên
+    spawnT += dt;
+    if (spawnT > 0.225) { spawnT = 0; spawnFloater(rnd() * W, H + 20, 0, -(25 + rnd() * 45), false); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i];
+      f.life += dt;
+      if (f.life > f.max) { floaters.splice(i, 1); continue; }
+      if (f.burst) { f.vx *= Math.pow(0.15, dt); f.vy = f.vy * Math.pow(0.15, dt) - 30 * dt; }
+      f.x += f.vx * dt + Math.sin(T * 1.4 + f.ph) * 0.35;
+      f.y += f.vy * dt;
+      const lr = f.life / f.max;
+      ctx.globalAlpha = f.burst ? (1 - lr) * 0.95 : Math.min(1, f.life) * (1 - lr) * 0.45;
+      ctx.fillStyle = f.col;
+      ctx.font = `${f.s}px serif`;
+      ctx.fillText('♥', f.x, f.y);
+    }
+
+    // quầng sáng đập theo nhịp
+    {
+      ctx.globalAlpha = 1;
+      const gR = U * 27 * (1 + 0.09 * pulse);
+      const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, gR);
+      g.addColorStop(0, `rgba(255, 50, 140, ${0.16 + 0.12 * pulse})`);
+      g.addColorStop(0.5, 'rgba(255, 30, 110, 0.06)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(CX - gR, CY - gR, gR * 2, gR * 2);
+    }
+
+    const ringRot = -T * 0.32;
+    drawText(false, ringRot, pulse, heartFade);   // nửa vòng chữ phía sau
+
+    const bob = Math.sin(T * 1.3) * 0.35;
+
+    // trái tim hạt (pha phát sáng)
+    ctx.globalCompositeOperation = 'lighter';
+    const yaw = dragYaw, pitch = dragPitch;   // chỉ xoay khi kéo tay
+    const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(pitch), sx = Math.sin(pitch);
+    const px = U / 7.5;
+    const kHeartY = -(K_HEART_CY - K_CY) * KS + K_LIFT, kBeat = 1 + 0.05 * pulse;
+    const kcy = Math.cos(kYaw), ksy = Math.sin(kYaw), kcx = Math.cos(kPitch), ksx = Math.sin(kPitch);
+    // thân/đuôi nằm sau lưng: nhìn thẳng thì ẩn (khỏi lộ qua trái tim), xoay ra sau mới hiện dần
+    const backVis = Math.min(1, Math.max(0, 0.55 - kcy * kcx * 1.3));
+    let cur = -1, spr;
+    for (const p of P) {
+      if (p.c !== cur) { cur = p.c; spr = SPRITES[cur]; }
+      let k, a;
+      if (p.type === 0) { k = 1 + 0.075 * pulse; a = 0.85; }
+      else if (p.type === 1) { k = 1 + 0.12 * pulse; a = 0.55; }
+      else {
+        k = 1 + 0.17 * pulse + 0.03 * Math.sin(T * p.sp + p.ph) + burst * (0.3 + 0.5 * ((p.ph * 7) % 1));
+        a = (0.3 + 0.35 * (0.5 + 0.5 * Math.sin(T * p.sp * 1.7 + p.ph))) * (1 - 0.5 * burst);
+      }
+      k *= HEART_SCALE;
+      let x = p.x * k, y = p.y * k, z = p.z * k;
+      if (p.type !== 2) {               // viền + lõi tim dao động nhẹ tại chỗ (hào quang vốn đã chuyển động)
+        const J = 0.2;
+        x += Math.sin(T * p.sp * 0.9 + p.ph) * J;
+        y += Math.cos(T * p.sp * 0.7 + p.ph * 1.3) * J;
+        z += Math.sin(T * p.sp * 0.8 + p.ph * 0.7) * J;
+      }
+      const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+      const y1 = y * cx - z1 * sx, z2 = y * sx + z1 * cx;
+      const pr = F / (D + z2);
+      const hs = Math.max(2, p.s * pr * px * 2.4);
+      const ha = a * Math.min(1, Math.max(0.25, 0.4 + (pr - 0.93) * 4));
+      const hx = CX + x1 * pr * U, hy = CY - y1 * pr * U;
+
+      if (morph <= 0) {
+        p.e = 0;
+        if (p.type === 3) continue;       // hạt riêng của Kitty ẩn khi đang là trái tim
+        ctx.globalAlpha = ha;
+        ctx.drawImage(spr, hx - hs / 2, hy - hs / 2, hs, hs);
+        continue;
+      }
+
+      // biến hình trái tim -> Kitty: bay xoáy ra rồi hội tụ vào vị trí mới
+      const e = easeIO(Math.min(1, Math.max(0, (morph - p.dl) / 0.6)));
+      let kx = p.kx, ky = p.ky, kz = p.kz, kpr = 1;
+      if (p.kh) { kx *= kBeat; ky = kHeartY + (ky - kHeartY) * kBeat; kz = -5 + (kz + 5) * kBeat; }
+      if (p.type === 2) {
+        kx += Math.sin(T * p.sp * 0.4 + p.ph) * 0.8; ky += Math.cos(T * p.sp * 0.3 + p.ph) * 0.8;
+      } else {
+        // dao động nhẹ tại chỗ (viền đen dao động ít hơn để giữ nét)
+        const J = p.kc === 1 ? 0.14 : 0.24;
+        kx += Math.sin(T * p.sp * 0.9 + p.ph) * J;
+        ky += Math.cos(T * p.sp * 0.7 + p.ph * 1.3) * J;
+        kz += Math.sin(T * p.sp * 0.8 + p.ph * 0.7) * J;
+        // xoay Kitty quanh tâm của nó
+        const yy = ky - K_LIFT;
+        const x1k = kx * kcy + kz * ksy, z1k = -kx * ksy + kz * kcy;
+        const y1k = yy * kcx - z1k * ksx, z2k = yy * ksx + z1k * kcx;
+        kpr = F / (D + z2k);
+        kx = x1k * kpr; ky = y1k * kpr + K_LIFT; p.Z = z2k - (p.feat ? 1.2 : 0);
+      }
+      const tx = CX + kx * U, ty = CY - (ky + bob) * U;
+      const sw = Math.sin(e * PI) * U;
+      const X = hx + (tx - hx) * e + p.swx * sw, Y = hy + (ty - hy) * e + p.swy * sw;
+
+      if (p.type === 2 || e < 0.5) {
+        p.e = 0;
+        const twinkle = 0.5 + 0.5 * Math.sin(T * p.sp * 1.3 + p.ph);
+        const ka = p.type === 2 ? 0.2 + 0.5 * twinkle : ha;
+        const fadeIn = p.type === 3 ? e * 2 : 1;
+        const s = p.type === 2 ? hs * (1 + 0.3 * e * twinkle) : hs;
+        ctx.globalAlpha = (ha + (ka - ha) * e) * fadeIn;
+        ctx.drawImage(spr, X - s / 2, Y - s / 2, s, s);
+      } else {
+        p.e = e; p.X = X; p.Y = Y;
+        p.A = Math.min(1, Math.max(0.55, 0.75 + (kpr - 1) * 4)) * (p.kb ? backVis : 1);
+        // trắng chỉ nhấp nháy nhẹ để mặt luôn sáng rõ; đỏ / vàng nhấp nháy nhiều hơn
+        const wave = 0.5 + 0.5 * Math.sin(T * p.sp * 1.6 + p.ph);
+        const tw = p.kc === 1 ? 1 : p.kc === 0 ? 0.85 + 0.15 * wave : 0.55 + 0.45 * wave;
+        p.A *= tw;
+        p.S = ((U * (0.3 + 0.08 * p.s) * kpr) * (p.kc === 1 ? 1 : 0.8 + 0.35 * tw) + (hs - U * 0.35) * (1 - e)) * K_SCALE[p.kc]
+              * (p.feat ? 1.12 : 1);
+        if (p.kc === 0) p.A = Math.max(p.A, 0.8 * (p.kb ? backVis : 1));
+        p.KP = kpr;
+      }
+    }
+
+    // pha hạt đặc tạo hình Hello Kitty
+    if (morph > 0) {
+      ctx.globalCompositeOperation = 'source-over';
+      KORDER.sort((a, b) => b.Z - a.Z);
+      for (const p of KORDER) {
+        if (p.e < 0.5) continue;
+        ctx.globalAlpha = Math.min(1, (p.e - 0.5) * 4) * p.A;
+        ctx.drawImage(K_SPRITES[p.kc], p.X - p.S / 2, p.Y - p.S / 2, p.S, p.S);
+      }
+      // tia sao chợt loé lên rồi tắt, chỉ ở mặt đang hướng về người xem
+      ctx.globalCompositeOperation = 'lighter';
+      const facingZ = kcy * kcx;
+      for (const p of KORDER) {
+        if (!p.star || p.e < 0.5 || p.nz * facingZ > -0.2) continue;
+        const f = Math.pow(Math.max(0, Math.sin(T * p.sp * 0.7 + p.ph * 3)), 8);
+        if (f < 0.02) continue;
+        const fs = U * (0.6 + 2.2 * f) * p.KP;
+        ctx.globalAlpha = f * Math.min(1, (p.e - 0.5) * 4) * (p.kb ? backVis : 1);
+        ctx.drawImage(FLARE, p.X - fs / 2, p.Y - fs / 2, fs, fs);
+      }
+    }
+
+    // bụi lấp lánh quanh vòng chữ
+    if (heartFade > 0.01) {
+      for (const d of DUST) {
+        const th = d.a + ringRot * (1 + d.sp);
+        const [dx, dy, pr, zz] = ringProj(d.r * Math.cos(th), d.y, d.r * Math.sin(th));
+        const size = d.s * pr * px * 3;
+        ctx.globalAlpha = (zz < 0 ? 0.8 : 0.25) * (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(T * 3 + d.ph))) * heartFade;
+        ctx.drawImage(SPRITES[d.c], dx - size / 2, dy - size / 2, size, size);
+      }
+    }
+
+    drawText(true, ringRot, pulse, heartFade);    // nửa vòng chữ phía trước
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
